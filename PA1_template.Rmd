@@ -5,21 +5,125 @@ output:
     keep_md: true
 ---
 
+First, load the R packages for this analysis.
 
-## Loading and preprocessing the data
+```{r, echo=TRUE, message=FALSE,results="hide"}
+library(plyr)
+library(dplyr)
+library(lattice)
+```
+
+## Loading and preprocessing the data 
+```{r, echo=TRUE}
+data <- read.csv("./repdata-data-activity/activity.csv")
+str(data)
+```
+
+## What is mean total number of steps taken per day? 
+Missing values are ignored for this part.
+
+**1. Calculate the total number of steps taken per day**
+```{r, echo=TRUE}
+data2 <- data[!is.na(data$steps),]
+str(data2)
+by_day <- group_by(data2,date)
+sum <- summarise(by_day,totalsteps=sum(steps))
+sum
+```
+
+**2. Make a histogram of the total number of steps taken each day**
+```{r, echo=TRUE}
+hist(sum$totalsteps, xlab="Total steps each day", main="Total number of steps taken each day")
+```
+
+**3. Calculate and report the mean and median of the total number of steps taken per day**
+```{r, echo=TRUE}
+mean(sum$totalsteps)
+```
+```{r, echo=TRUE}
+median(sum$totalsteps)
+```
 
 
+## What is the average daily activity pattern? 
+Missing values are ignored for this part.
 
-## What is mean total number of steps taken per day?
+**1. Make a time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)**
+```{r, echo=TRUE}
+by_interval <- group_by(data2,interval)
+sum2 <- summarize(by_interval, avgstep = mean(steps))
+sum2
+plot(sum2$interval,sum2$avgstep, type="l", xlab="Interval", ylab="Number of steps")
+```
 
-
-
-## What is the average daily activity pattern?
-
+**2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?**
+```{r, echo=TRUE}
+maxstep <- max(sum2$avgstep)
+sum2[sum2$avgstep==maxstep,]
+```
 
 
 ## Imputing missing values
 
+**1. The total number of missing values in the dataset**
+```{r, echo=TRUE}
+my_na <- is.na(data)
+sum(my_na)
+```
+
+**2. Impute the missing value, using the mean for that 5-mintue interval**
+
+Create a data frame to include NA only and merge it with summarized data set by interval to get mean for the 5-minute interval.
+```{r, echo=TRUE}
+x <- data[is.na(data),]
+y <- left_join(x,sum2, by="interval")
+# remove original column with NA values and use mean instead
+z <- select(y,avgstep,date,interval)
+colnames(z) <- c("steps","date","interval")
+head(z,10)
+```
+
+**3. Create a new dataset that is equal to the original dataset but with the missing data filled in.**
+```{r, echo=TRUE}
+w <- rbind(data2,z)
+w <- arrange(w,date,interval)
+head(w)
+summary(w)
+```
+
+**4. Make a histogram of the total number of steps taken each day**
+```{r, echo=TRUE}
+by_day_new <- group_by(w,date)
+sum_new <- summarize(by_day_new,totalsteps=sum(steps))
+sum_new
+hist(sum_new$totalsteps, xlab="Total steps each day", main="Total number of steps taken each day")
+```
+
+**5. Calculate and report the mean and median total number of steps taken per day**
+```{r, echo=TRUE}
+mean(sum_new$totalsteps)
+median(sum_new$totalsteps)
+```
+These values differ from the estimates from the first part of the assignment. After imputing the missing values, the median equals to the mean.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+**1. Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day**
+```{r, echo=TRUE}
+w$weekd <- weekdays(as.Date(as.character(w$date)))
+w1 <- w[w$weekd==c("Sunday","Saturday"),]
+w1$dayind <- "weekend"
+w2 <- w[w$weekd!=c("Sunday","Saturday"),]
+w2$dayind <- "weekday"
+combinedw <- rbind(w1,w2)
+head(combinedw)
+# tail(combinedw)
+```
+
+**2. Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).**
+```{r, echo=TRUE}
+by_interval_new <- group_by(combinedw,dayind,interval)
+sum2_new <- summarize(by_interval_new, avgstep = mean(steps))
+# sum2_new
+xyplot(avgstep ~ interval | dayind, data = sum2_new, layout = c(1,2), type = "l", xlab="Interval", ylab="Number of steps")
+```
